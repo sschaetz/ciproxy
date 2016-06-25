@@ -7,6 +7,7 @@ import re
 import datetime
 from collections import namedtuple
 
+TEMPLATE = 'badge_template.svg'
 DATABASE = 'ciproxy.db'
 FIELDS = """commitid TEXT, branch TEXT, backend TEXT,
             machine TEXT, make_result INT, cmake_result INT, ctest_result INT,
@@ -14,6 +15,10 @@ FIELDS = """commitid TEXT, branch TEXT, backend TEXT,
 NTFIELDS = re.sub(r'[A-Z\[\]]', '', FIELDS)
 
 BuildResult = namedtuple('BuildResult', NTFIELDS)
+
+TemplateColors = dict(CUDA='#ff7878', OPENCL='#78ff78', METAL='#007878')
+GreenColor = '#00b900'
+RedColor = '#b9001e'
 
 app = Flask(__name__)
 
@@ -32,6 +37,12 @@ def _db_setup():
     db.commit()
     return db
 
+def _get_badge_template():
+    tmp = getattr(g, '_template', None)
+    if tmp is None:
+        with open(TEMPLATE, 'r') as f:
+            g._template = f.read()
+    return g._template
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -45,14 +56,23 @@ def _db_add_result(result):
             ','.join(['?'] * (NTFIELDS.count(',')+1)) + ")", result)
     db.commit()
 
-def _db_get_branch(branch):
+def _db_get_latest_branch_result(branch):
     db = get_db()
-    c = db.execute("""SELECT make_result, cmake_result, ctest_result
+    c = db.execute("""SELECT make_result, cmake_result, ctest_result, backend
                   FROM results
-                  WHERE branch=? ORDER BY timestamp DESC LIMIT 1;""",
+                  WHERE branch=? ORDER BY timestamp DESC LIMIT 3;""",
                 [branch])
     return c.fetchall()
 
+def _compute_result(result_interm):
+    print(result_interm)
+    result = dict()
+    for r in result_interm:
+        result[r[3]] = not sum([int(x) for x in r[0:3]])
+    return result
+
+def _make_badge(result):
+    pass
 
 @app.teardown_appcontext
 def close_connection(exception):
@@ -81,4 +101,14 @@ def newbr():
 
 @app.route("/getbr", methods=['GET'])
 def getbr():
-    return str(_db_get_branch(request.args['branch']))
+
+    badge = _get_badge_template()
+    result = _compute_result(
+            _db_get_latest_branch_result(request.args['branch']))
+
+    for k, v in TemplateColors.items():
+        print(k, v, RedColor if not result[k] else GreenColor)
+        badge = badge.replace(v,
+                RedColor if not result[k] else GreenColor)
+
+    return badge
