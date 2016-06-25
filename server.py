@@ -1,13 +1,16 @@
 from flask import Flask
 from flask import request
 from flask import g
+from flask import make_response
 import sqlite3
 import os
 import re
 import datetime
 from collections import namedtuple
 
-TEMPLATE = 'badge_template.svg'
+MYDIR = os.path.dirname(__file__)
+TEMPLATE = os.path.join(MYDIR, 'badge_template.svg')
+
 DATABASE = 'ciproxy.db'
 FIELDS = """commitid TEXT, branch TEXT, backend TEXT,
             machine TEXT, make_result INT, cmake_result INT, ctest_result INT,
@@ -110,5 +113,7 @@ def getbr():
         print(k, v, RedColor if not result[k] else GreenColor)
         badge = badge.replace(v,
                 RedColor if not result[k] else GreenColor)
+    response = make_response(badge)
+    response.content_type = 'image/svg+xml'
+    return response
 
-    return badge
