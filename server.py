@@ -115,5 +115,6 @@ def getbr():
                 RedColor if not result[k] else GreenColor)
     response = make_response(badge)
     response.content_type = 'image/svg+xml'
+    response.cache_control.no_cache = True
     return response
 
